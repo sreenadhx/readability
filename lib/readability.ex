@@ -48,7 +48,7 @@ defmodule Readability do
                     page_url: nil
                    ]
 
-  @regexes [unlikely_candidate: ~r/combx|comment|community|disqus|extra|foot|header|hidden|lightbox|modal|menu|meta|nav|remark|rss|shoutbox|sidebar|sponsor|ad-break|agegate|pagination|pager|popup/i,
+  @regexes [unlikely_candidate: ~r/hidden|^hid$| hid$| hid |^hid |banner|combx|comment|community|disqus|extra|foot|header|hidden|lightbox|modal|menu|meta|nav|remark|rss|shoutbox|sidebar|sidebar-item|aside|sponsor|ad-break|agegate|pagination|pager|popup|ad-wrapper|advertisement|social|popup|yom-remote|share|social|mailmunch|relatedposts/i,
             ok_maybe_its_a_candidate: ~r/and|article|body|column|main|shadow/i,
             positive: ~r/article|body|content|entry|hentry|main|page|pagination|post|text|blog|story/i,
             negative: ~r/hidden|^hid|combx|comment|com-|contact|foot|footer|footnote|link|masthead|media|meta|outbrain|promo|related|scroll|shoutbox|sidebar|sponsor|shopping|tags|tool|utility|widget/i,
@@ -56,9 +56,9 @@ defmodule Readability do
             replace_brs: ~r/(<br[^>]*>[ \n\r\t]*){2,}/i,
             replace_fonts: ~r/<(\/?)font[^>]*>/i,
             replace_xml_version: ~r/<\?xml.*\?>/i,
-            normalize: ~r/\s{2,}/,
+            normalize: ~r/\s{2,}|(<hr\/?>){2,}/,
             video: ~r/\/\/(www\.)?(dailymotion|youtube|youtube-nocookie|player\.vimeo)\.com/i,
-            protect_attrs: ~r/^(?!id|rel|for|summary|title|href|src|alt|srcdoc)/i
+            protect_attrs: ~r/^(?!id|rel|for|summary|title|href|data-src|src|srcdoc|height|width|class)/i
            ]
 
   @type html_tree :: tuple | list
@@ -71,12 +71,18 @@ defmodule Readability do
   """
   @spec summarize(url, options) :: Summary.t
   def summarize(url, opts \\ []) do
-    opts = Keyword.merge(opts, [page_url: url])
+    opts = @default_options
+    |> Keyword.merge(opts)
+    |> Keyword.merge([page_url: url])
     httpoison_options = Application.get_env :readability, :httpoison_options, []
+
     %{status_code: _, body: raw_html} = HTTPoison.get!(url, [], httpoison_options)
+
     html_tree = Helper.normalize(raw_html)
-    article_tree = html_tree
-                   |> ArticleBuilder.build(opts)
+      |> Helper.remove_attrs(regexes[:protect_attrs])
+      |> Helper.to_absolute(url)
+
+    article_tree = html_tree |> ArticleBuilder.build(opts)
 
     %Summary{title: title(html_tree),
              authors: authors(html_tree),
@@ -129,6 +135,7 @@ defmodule Readability do
     opts = Keyword.merge(@default_options, opts)
     raw_html
     |> Helper.normalize
+    |> Helper.remove_attrs(regexes[:protect_attrs])
     |> ArticleBuilder.build(opts)
   end
 
