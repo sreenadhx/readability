@@ -91,6 +91,30 @@ defmodule Readability do
            }
   end
 
+  def summarize_existing(raw_html, opts \\ []) do
+    opts = @default_options
+    |> Keyword.merge(opts)
+
+    url = Keyword.get(opts, :url, nil)
+
+    html_tree = Helper.normalize(raw_html)
+      |> Helper.remove_attrs(regexes[:protect_attrs])
+
+    html_tree = case url do
+      nil -> html_tree
+      _ -> 
+        html_tree |> Helper.to_absolute(url)
+    end
+
+    article_tree = html_tree |> ArticleBuilder.build(opts)
+
+    %Summary{title: title(html_tree),
+             authors: authors(html_tree),
+             article_html: readable_html(article_tree),
+             article_text: readable_text(article_tree)
+           }
+  end
+
   @doc """
   Extract title
 
